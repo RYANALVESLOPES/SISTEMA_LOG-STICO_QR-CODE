@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema Logístico - Impressão Full A4</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; margin: 0; }
+
+        /* --- ESTILOS DA INTERFACE (TELA) --- */
+        .table-container { max-height: 55vh; overflow-y: auto; }
+        thead th { position: sticky; top: 0; z-index: 10; }
+        
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* Esconde a área de impressão da tela do computador */
+        @media screen {
+            #printArea {
+                position: fixed;
+                left: -9999px;
+                top: -9999px;
+                z-index: -1;
+            }
+        }
+
+        /* --- CONFIGURAÇÃO RIGOROSA DE IMPRESSÃO (A4) --- */
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 0;
+            }
+            
+            body, html { margin: 0; padding: 0; background: white; }
+            .no-print { display: none !important; }
+            
+            #printArea {
+                display: block !important;
+                position: static !important;
+                width: 100%;
+            }
+
+            .label-page {
+                width: 210mm;
+                height: 296mm;
+                page-break-after: always;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                box-sizing: border-box;
+                padding: 12mm;
+                background: white;
+            }
+
+            .etiqueta-box {
+                width: 100%;
+                height: 100%;
+                border: 6px solid #000;
+                display: grid;
+                grid-template-rows: 24% 36% 18% 22%; 
+                box-sizing: border-box;
+            }
+
+            .print-section {
+                border-bottom: 6px solid #000;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                padding: 15px;
+                text-align: center;
+                overflow: hidden;
+            }
+            .print-section:last-child { border-bottom: none; }
+
+            .bg-black-print { background-color: #000 !important; color: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+            .grid-2-col {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                width: 100%;
+                height: 100%;
+            }
+            .grid-item {
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                padding: 10px;
+            }
+            .grid-item:first-child { border-right: 6px solid #000; }
+
+            .label-title { font-size: 24px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 5px; color: #000; flex-shrink: 0; }
+            .label-title-dark { font-size: 22px; font-weight: 700; text-transform: uppercase; letter-spacing: 4px; margin-bottom: 15px; color: #94a3b8 !important; flex-shrink: 0; }
+            
+            .label-value-huge { font-size: 150px; font-weight: 900; line-height: 0.9; letter-spacing: -2px; }
+            
+            .label-value-large { font-weight: 900; text-transform: uppercase; width: 95%; display: flex; align-items: center; justify-content: center; flex-grow: 1; }
+            .label-embalagem { font-size: 55px; font-weight: 800; margin-top: 15px; letter-spacing: 2px; color: #e2e8f0 !important; flex-shrink: 0; }
+            
+            .label-value-medium { font-size: 120px; font-weight: 900; line-height: 0.9; letter-spacing: -2px; }
+
+            .barcode-container {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                width: 100%;
+                padding: 0 20px;
+                box-sizing: border-box;
+            }
+            
+            .barcode-svg-area {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            svg { width: 110mm !important; height: 35mm !important; }
+            .qr-code-box { padding: 5px; background: white; border: 3px solid #000; }
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 text-slate-800">
+
+    <div class="max-w-7xl mx-auto no-print">
+        
+        <header class="mb-8 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative">
+            <div>
+                <div class="inline-flex items-center gap-1.5 bg-slate-100 text-slate-500 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border border-slate-200 mb-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-500"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    Desenvolvido por Ryan Alves Lopes
+                </div>
+                
+                <h1 class="text-3xl font-black tracking-tight text-slate-900">SISTEMA <span class="text-blue-600">LOGÍSTICO</span></h1>
+                <p class="text-sm text-slate-500 mt-1">Gerador de Etiquetas A4</p>
+            </div>
+            
+            <div class="flex items-center gap-4 w-full md:w-auto mt-2 md:mt-0">
+                <label for="fileInput" class="w-full md:w-auto justify-center cursor-pointer bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold py-2.5 px-6 rounded-lg border border-blue-200 transition-colors flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    Carregar Planilha
+                </label>
+                <input type="file" id="fileInput" accept=".xlsx, .xls, .csv" class="hidden"/>
+            </div>
+        </header>
+
+        <div id="emptyState" class="bg-white border-2 border-dashed border-slate-300 rounded-2xl p-12 text-center text-slate-500 mb-6">
+            <svg class="mx-auto h-12 w-12 text-slate-400 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <p class="text-lg font-medium">Nenhuma planilha carregada</p>
+            <p class="text-sm">Faça o upload de um arquivo Excel para começar a gerar etiquetas.</p>
+        </div>
+
+        <div id="mappingAreaContainer" class="hidden">
+            <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">Mapeamento de Colunas</h2>
+            <div id="mappingArea" class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-4 grid grid-cols-2 md:grid-cols-6 gap-4">
+            </div>
+            
+            <div class="mb-6 bg-white p-2 rounded-xl shadow-sm border border-slate-200 flex items-center gap-3">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" class="text-slate-400 ml-3">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input type="text" id="searchInput" placeholder="Buscar por Código ou Descrição do produto..." class="w-full py-2 bg-transparent outline-none text-sm text-slate-700 placeholder-slate-400 font-medium">
+            </div>
+        </div>
+
+        <div id="tableContainer" class="hidden table-container bg-white shadow-sm border border-slate-200 rounded-xl">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-slate-900 text-white text-sm uppercase tracking-wide">
+                        <th class="p-4 w-16 text-center">
+                            <input type="checkbox" id="selectAll" class="w-4 h-4 accent-blue-500 cursor-pointer" title="Selecionar Todos">
+                        </th>
+                        <th class="p-4 font-semibold">Código  _EMPTY_4</th>
+                        <th class="p-4 font-semibold">Descrição  _EMPTY_6</th>
+                        <th class="p-4 font-semibold">Embalagem  _EMPTY_7</th>
+                        <th class="p-4 font-semibold">Cód. Barras  _EMPTY_5</th>
+                        <th class="p-4 font-semibold text-center">Pallet  _EMPTY_12</th>
+                        <th class="p-4 font-semibold text-center">Lastro  _EMPTY_13</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody" class="text-sm divide-y divide-slate-100">
+                </tbody>
+            </table>
+        </div>
+
+        <button id="printBtn" onclick="window.print()" class="hidden fixed bottom-8 right-8 bg-blue-600 hover:bg-blue-700 text-white font-black py-4 px-8 rounded-full shadow-[0_10px_25px_-5px_rgba(37,99,235,0.5)] flex items-center gap-3 transform transition hover:scale-105 z-50">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            IMPRIMIR ETIQUETAS
+            <span id="printCount" class="bg-white text-blue-700 px-2 py-1 rounded-full text-xs ml-2">0</span>
+        </button>
+    </div>
+
+    <div id="printArea"></div>
+
+    <script>
+        let excelData = [];
+        const mappingKeys = ['codigo', 'descricao', 'embalagem', 'barcode', 'pallet', 'lastro'];
+        const labels = ['CÓDIGO', 'DESCRIÇÃO', 'EMBALAGEM', 'CÓD. BARRAS', 'PALLET', 'LASTRO'];
+        let selectedItems = new Set();
+
+        document.getElementById('searchInput').addEventListener('input', renderTable);
+
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const workbook = XLSX.read(new Uint8Array(event.target.result), {type: 'array'});
+                excelData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {defval: ""}); 
+                
+                if(excelData.length > 0) {
+                    document.getElementById('emptyState').classList.add('hidden');
+                    document.getElementById('mappingAreaContainer').classList.remove('hidden');
+                    document.getElementById('tableContainer').classList.remove('hidden');
+                    document.getElementById('printBtn').classList.remove('hidden');
+                    
+                    selectedItems.clear();
+                    document.getElementById('printArea').innerHTML = '';
+                    document.getElementById('searchInput').value = ''; 
+                    updatePrintCount();
+                    
+                    createMappingSelectors(Object.keys(excelData[0]));
+                    renderTable();
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        function createMappingSelectors(headers) {
+            const area = document.getElementById('mappingArea');
+            area.innerHTML = '';
+            
+            mappingKeys.forEach((key, i) => {
+                const div = document.createElement('div');
+                div.innerHTML = `
+                    <label class="block text-[11px] font-bold text-slate-500 mb-1">${labels[i]}</label>
+                    <select id="map-${key}" class="w-full p-2 border border-slate-300 rounded-lg bg-slate-50 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition" onchange="handleMappingChange()">
+                        <option value="">-- Selecione --</option>
+                        ${headers.map(h => `<option value="${h}" ${h.toLowerCase().includes(key.substring(0,3)) ? 'selected' : ''}>${h}</option>`).join('')}
+                    </select>`;
+                area.appendChild(div);
+            });
+        }
+
+        function handleMappingChange() {
+            selectedItems.clear();
+            document.getElementById('printArea').innerHTML = '';
+            document.getElementById('selectAll').checked = false;
+            updatePrintCount();
+            renderTable();
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('tbody');
+            tbody.innerHTML = '';
+            const maps = getMappings();
+            
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+
+            let visibleRowsCount = 0;
+            let checkedVisibleRowsCount = 0;
+
+            excelData.forEach((row, index) => {
+                const codigoStr = String(row[maps.codigo] || '').toLowerCase();
+                const descricaoStr = String(row[maps.descricao] || '').toLowerCase();
+
+                if (searchTerm && !codigoStr.includes(searchTerm) && !descricaoStr.includes(searchTerm)) {
+                    return; 
+                }
+
+                visibleRowsCount++;
+                const isChecked = selectedItems.has(index);
+                if (isChecked) checkedVisibleRowsCount++;
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition-colors";
+                tr.innerHTML = `
+                    <td class="p-4 text-center">
+                        <input type="checkbox" class="row-checkbox w-4 h-4 accent-blue-500 cursor-pointer" data-index="${index}" ${isChecked ? 'checked' : ''} onchange="toggleItem(this, ${index})">
+                    </td>
+                    <td class="p-4 font-bold text-slate-900">${row[maps.codigo] || '-'}</td>
+                    <td class="p-4 text-slate-700">${row[maps.descricao] || '-'}</td>
+                    <td class="p-4 text-blue-600 font-bold">${row[maps.embalagem] || '-'}</td>
+                    <td class="p-4 font-mono text-xs text-slate-500">${row[maps.barcode] || '-'}</td>
+                    <td class="p-4 font-black text-center text-slate-800">${row[maps.pallet] || '0'}</td>
+                    <td class="p-4 font-black text-center text-slate-800">${row[maps.lastro] || '0'}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            const selectAllCheckbox = document.getElementById('selectAll');
+            if (visibleRowsCount > 0 && visibleRowsCount === checkedVisibleRowsCount) {
+                selectAllCheckbox.checked = true;
+            } else {
+                selectAllCheckbox.checked = false;
+            }
+        }
+
+        function getMappings() {
+            return mappingKeys.reduce((obj, key) => {
+                const select = document.getElementById(`map-${key}`);
+                obj[key] = select ? select.value : '';
+                return obj;
+            }, {});
+        }
+
+        document.getElementById('selectAll').addEventListener('change', function(e) {
+            const isChecked = e.target.checked;
+            const checkboxes = document.querySelectorAll('.row-checkbox');
+            
+            checkboxes.forEach(cb => {
+                cb.checked = isChecked;
+                const index = parseInt(cb.dataset.index);
+                if(isChecked && !selectedItems.has(index)) {
+                    selectedItems.add(index);
+                    createPrintPage(index);
+                } else if (!isChecked && selectedItems.has(index)) {
+                    selectedItems.delete(index);
+                    removePrintPage(index);
+                }
+            });
+            updatePrintCount();
+        });
+
+        function toggleItem(checkbox, index) {
+            if(checkbox.checked) {
+                selectedItems.add(index);
+                createPrintPage(index);
+            } else {
+                selectedItems.delete(index);
+                removePrintPage(index);
+            }
+            
+            const totalVisible = document.querySelectorAll('.row-checkbox').length;
+            const totalCheckedVisible = document.querySelectorAll('.row-checkbox:checked').length;
+            document.getElementById('selectAll').checked = (totalVisible > 0 && totalVisible === totalCheckedVisible);
+            
+            updatePrintCount();
+        }
+
+        function updatePrintCount() {
+            document.getElementById('printCount').innerText = selectedItems.size;
+        }
+
+        function createPrintPage(index) {
+            const maps = getMappings();
+            const item = excelData[index];
+            const id = `print-label-${index}`;
+            
+            const codigo = item[maps.codigo] ? String(item[maps.codigo]) : 'N/A';
+            const descricao = item[maps.descricao] || 'SEM DESCRIÇÃO';
+            const embalagem = item[maps.embalagem] || '';
+            const barcode = item[maps.barcode] ? String(item[maps.barcode]) : '0000000000000';
+            const pallet = item[maps.pallet] || '0';
+            const lastro = item[maps.lastro] || '0';
+
+            // INTELIGÊNCIA: Ajusta o tamanho da fonte com base no tamanho do nome do produto
+            let descFontSize = '85px';
+            let descLineHeight = '1';
+            
+            if (descricao.length > 40) {
+                descFontSize = '45px';
+                descLineHeight = '1.2';
+            } else if (descricao.length > 28) {
+                descFontSize = '55px';
+                descLineHeight = '1.1';
+            } else if (descricao.length > 18) {
+                descFontSize = '70px';
+                descLineHeight = '1.05';
+            }
+
+            const page = document.createElement('div');
+            page.id = id;
+            page.className = 'label-page';
+            page.innerHTML = `
+                <div class="etiqueta-box">
+                    <div class="print-section">
+                        <span class="label-title">CÓDIGO DO PRODUTO</span>
+                        <div class="label-value-huge">${codigo}</div>
+                    </div>
+                    
+                    <div class="print-section bg-black-print" style="padding: 20px;">
+                        <span class="label-title-dark">DESCRIÇÃO</span>
+                        <div class="label-value-large" style="font-size: ${descFontSize}; line-height: ${descLineHeight}; text-align: center;">${descricao}</div>
+                        ${embalagem ? `<div class="label-embalagem">${embalagem}</div>` : ''}
+                    </div>
+                    
+                    <div class="print-section p-0">
+                        <div class="grid-2-col">
+                            <div class="grid-item">
+                                <span class="label-title">PALLET</span>
+                                <div class="label-value-medium">${pallet}</div>
+                            </div>
+                            <div class="grid-item">
+                                <span class="label-title">LASTRO</span>
+                                <div class="label-value-medium">${lastro}</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="print-section p-0" style="border-bottom: none;">
+                        <div class="barcode-container">
+                            <div class="barcode-svg-area">
+                                <svg id="bc-${index}"></svg>
+                                <span class="text-3xl font-black mt-1 tracking-widest">${barcode}</span>
+                            </div>
+                            <div id="qr-${index}" class="qr-code-box"></div>
+                        </div>
+                    </div>
+                </div>`;
+            
+            document.getElementById('printArea').appendChild(page);
+            
+            try {
+                JsBarcode(`#bc-${index}`, barcode, {
+                    displayValue: false, 
+                    width: 4.5,
+                    height: 110,
+                    margin: 0
+                });
+            } catch(e) { console.warn("Erro ao gerar código de barras", e); }
+
+            try {
+                new QRCode(document.getElementById(`qr-${index}`), {
+                    text: codigo, 
+                    width: 140, 
+                    height: 140,
+                    colorDark : "#000000",
+                    colorLight : "#ffffff",
+                    correctLevel : QRCode.CorrectLevel.H
+                });
+                
+                setTimeout(() => {
+                    const imgNode = document.querySelector(`#qr-${index} img`);
+                    if(imgNode) imgNode.removeAttribute('title');
+                }, 100);
+            } catch(e) { console.warn("Erro ao gerar QR Code", e); }
+        }
+
+        function removePrintPage(index) {
+            const el = document.getElementById(`print-label-${index}`);
+            if(el) el.remove();
+        }
+    </script>
+</body>
+</html>
