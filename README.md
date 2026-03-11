@@ -26,3 +26,6 @@ Este projeto foi construído utilizando as seguintes tecnologias e bibliotecas:
 ## ⚙️ Como Usar
 
 Como a aplicação roda inteiramente no lado do cliente (navegador), não é necessário instalar dependências ou rodar servidores complexos.
+
+
+<img width="615" height="860" alt="image" src="https://github.com/user-attachments/assets/f8a18b87-b58f-4fd2-a7ec-f6c68f8e2dd1" />
